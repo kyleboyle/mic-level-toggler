@@ -16,8 +16,8 @@ public class MicTrigger {
 
     private static final String WIN_TITLE = "key toggle on mic level";
 
-    private static final int DEFAULT_TRIGGER_LEVEL = 30;
-    private static final int DEFAULT_TOGGLE_TIMEOUT = 20;
+    private static final int DEFAULT_TRIGGER_LEVEL = 40;
+    private static final int DEFAULT_TOGGLE_TIMEOUT = 500;
     private static final String DEFAULT_KEYSTROKE = "k";
     private static final String DEFAULT_WINDOW_FILTERS = "Counter-Strike\npubg";
     private static Set<String> windowFilterSet;
@@ -26,6 +26,17 @@ public class MicTrigger {
     private static volatile int triggerLevelValue = DEFAULT_TRIGGER_LEVEL;
     private static volatile int toggleTimeoutValue = DEFAULT_TOGGLE_TIMEOUT;
     private static volatile String keystroke = DEFAULT_KEYSTROKE;
+
+    /* to trigger mic with mouse key but stop transmission when finished talking (don't have to hold key in)
+     * use "key press on timeout" option on a normal push to talk key bind,
+     * then bind a mouse button to turn voice record on, but not off:
+     *
+     * bind "k" "+voicerecord"
+     * alias voiceToggleOn "+voicerecord;
+     * bind mouse4 voiceToggleOn
+     *
+     */
+    private static volatile boolean sendOnTimeoutOnly = false;
 
     private static ImageIcon activeIcon = new ImageIcon(
             Toolkit.getDefaultToolkit().getImage(MicTrigger.class.getResource("/icon.png"))
@@ -72,8 +83,27 @@ public class MicTrigger {
             toggleTimeoutValue = Integer.parseInt(toggleTimeout.getValue().toString());
         });
 
-        main.add(new JLabel("toggle timeout ms"));
+        main.add(new JLabel("silence timeout ms"));
         main.add(toggleTimeout);
+
+        JRadioButton downUpChoice1 = new JRadioButton("Key down on trigger, up on timeout");
+        downUpChoice1.setActionCommand("toggle");
+
+        JRadioButton downUpChoice2 = new JRadioButton("key press on timeout");
+        downUpChoice2.setActionCommand("timeout");
+        ButtonGroup group = new ButtonGroup();
+        group.add(downUpChoice1);
+        group.add(downUpChoice2);
+        downUpChoice1.setSelected(!sendOnTimeoutOnly);
+        downUpChoice2.setSelected(sendOnTimeoutOnly);
+
+        main.add(new JPanel());
+        main.add(downUpChoice1);
+        main.add(new JPanel());
+        main.add(downUpChoice2);
+
+        downUpChoice1.addItemListener(e -> sendOnTimeoutOnly = false);
+        downUpChoice2.addItemListener(e -> sendOnTimeoutOnly = true);
 
         main.add(new JLabel("window title filters"));
 
@@ -99,7 +129,7 @@ public class MicTrigger {
         main.add(new JLabel());
 
         SpringUtilities.makeCompactGrid(main,
-                6, 2,
+                8, 2,
                 3, 3,  //initX, initY
                 3, 10); //xPad, yPad
 
@@ -173,13 +203,19 @@ public class MicTrigger {
                 }
 
                 System.out.println("on");
-                Keyboard.send("{" + keystroke + " down}");
+                if (!sendOnTimeoutOnly) {
+                    Keyboard.send("{" + keystroke + " down}");
+                }
                 //decorateComponent.setBorder(BorderFactory.createLineBorder(Color.red));
                 decorateComponent.setIcon(activeIcon);
                 isPressed = true;
             }
         } else if (isPressed && System.currentTimeMillis() >= toggleExpireTime) {
-            Keyboard.send("{" + keystroke + " up}");
+            if (!sendOnTimeoutOnly) {
+                Keyboard.send("{" + keystroke + " up}");
+            } else {
+                Keyboard.send(keystroke);
+            }
             //decorateComponent.setBorder(BorderFactory.createEmptyBorder());
             decorateComponent.setIcon(null);
             isPressed = false;
